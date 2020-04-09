@@ -1,6 +1,7 @@
 defmodule AlphaVantageApi.Stocks do
-  alias AlphaVantageApi.Client
+  alias AlphaVantageApi.{Client, Utils}
   alias AlphaVantageApi.Stocks.{Metadata, TsData}
+  alias AlphaVantageApi
 
   ["1min", "5min", "15min", "30min", "60min"]
   |> Enum.each(fn interval ->
@@ -21,7 +22,7 @@ defmodule AlphaVantageApi.Stocks do
 
   defp fetch_intraday(symbol, interval \\ "1min", outputsize \\ "full") do
     symbol
-    |> build_request("TIME_SERIES_INTRADAY")
+    |> Client.build_base_request("TIME_SERIES_INTRADAY")
     |> Map.merge(%{"outputsize" => outputsize, "interval" => interval})
     |> Client.build_params()
     |> Client.request()
@@ -31,7 +32,7 @@ defmodule AlphaVantageApi.Stocks do
 
   defp fetch_daily(symbol, outputsize \\ "full") do
     symbol
-    |> build_request("TIME_SERIES_DAILY_ADJUSTED")
+    |> Client.build_base_request("TIME_SERIES_DAILY_ADJUSTED")
     |> Map.merge(%{"outputsize" => outputsize})
     |> Client.build_params()
     |> Client.request()
@@ -39,28 +40,6 @@ defmodule AlphaVantageApi.Stocks do
     |> format_results()
   end
 
-  defp build_request(symbol, function) do
-    %{
-      "function" => function,
-      "symbol" => symbol
-    }
-  end
-
-  def parse_date(date) do
-    cond do
-      String.match?(
-        date,
-        ~r/[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[1-2][0-9]|3[0-1]) (2[0-3]|[01][0-9]):[0-5][0-9]:[0-5][0-9]/
-      ) ->
-        Timex.parse!(date, "%Y-%m-%d %H:%M:%S", :strftime) |> Timex.to_datetime
-
-      String.match?(date, ~r/\d{4}\-(0[1-9]|1[012])\-(0[1-9]|[12][0-9]|3[01])/) ->
-        Timex.parse!(date, "{YYYY}-{M}-{D}") |>  Timex.to_datetime
-
-      true ->
-        date
-    end
-  end
 
   defp format_results(results) do
     case results do
@@ -73,7 +52,7 @@ defmodule AlphaVantageApi.Stocks do
           |> Map.to_list()
           |> Enum.map(fn {date, row_data} ->
             %TsData{
-              date: parse_date(date),
+              date: Utils.parse_date(date),
               open: Map.get(row_data, "1. open", nil),
               close: Map.get(row_data, "4. close", nil),
               low: Map.get(row_data, "3. low", nil),
@@ -88,7 +67,7 @@ defmodule AlphaVantageApi.Stocks do
         %Metadata{
           description: resp["Meta Data"]["1. Information"],
           ticker: resp["Meta Data"]["2. Symbol"],
-          last_updated: parse_date(resp["Meta Data"]["3. Last Refreshed"]),
+          last_updated: Utils.parse_date(resp["Meta Data"]["3. Last Refreshed"]),
           timezone: resp["Meta Data"]["5. Time Zone"],
           ts_data:
             Enum.sort_by(data, fn %AlphaVantageApi.Stocks.TsData{date: date} ->

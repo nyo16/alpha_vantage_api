@@ -24,4 +24,12 @@ defmodule AlphaVantageApi.Client do
         {:error, reason}
     end
   end
+
+
+  def build_base_request(symbol, function) do
+    %{
+      "function" => function,
+      "symbol" => symbol
+    }
+  end
 end
